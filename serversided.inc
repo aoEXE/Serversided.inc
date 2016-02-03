@@ -401,9 +401,9 @@ stock static SS_DestroyVendingMachines()
 }
 
 #if ! defined FILTERSCRIPT
-	public OnFilterScriptInit()
-#else
 	public OnGameModeInit()
+#else
+	public OnFilterScriptInit()
 #endif
 {
 	SS_CreateVendingMachines();
