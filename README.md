@@ -1,4 +1,4 @@
-# Serversided.inc `v1.6 [BETA]`
+# Serversided.inc `v1.7 [BETA]`
 
 Serversided library disables all said client side features or player stats and enables its custom server sided stats for players. This makes it impossible to hack and the good thing is there will be no need for scripting your own detection system cause the script automatically handles the situation. There is no KICK/BAN but simple reseter.
 
