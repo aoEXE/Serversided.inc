@@ -4,20 +4,27 @@
 #define _serversided_included
 
 /*
-*
-* ===============
-* LIBRARY
-* ===============
-* Server sieded include (serversided.inc) - v1.6 [BETA]
-* Makes all the client side features to server scripted parts (covers Health, Armour, Money, Weapon, Ammo and Vehicle Health).
-*
-* ===============
-* CREDITS
-* ===============
-* Gammix - Include creator
-* Slice - Damage processing function, weapons array and average hit/shoot functions to catch rapid fire
-* SecretBoss - Testing the include
-*
+	 _____                              _     _          _   _
+	/  ___|                            (_)   | |        | | (_)
+	\ `--.  ___ _ ____   _____ _ __ ___ _  __| | ___  __| |  _ _ __   ___
+	 `--. \/ _ \ '__\ \ / / _ \ '__/ __| |/ _` |/ _ \/ _` | | | '_ \ / __|
+	/\__/ /  __/ |   \ V /  __/ |  \__ \ | (_| |  __/ (_| |_| | | | | (__
+	\____/ \___|_|    \_/ \___|_|  |___/_|\__,_|\___|\__,_(_)_|_| |_|\___|
+
+	VERSION:
+	* 1.7 (updated: 3 Feb, 2016)
+
+	FILE:
+	* serversided.inc (include)
+	* Makes all the client side features to server scripted parts (covers Health, Armour, Money, Weapon, Rate of fire, Range, Ammo and Vehicle health).
+
+	AUTHOR:
+	* Gammix
+
+	CONTRIBUTORS:
+	* Slice 		- Damage processing, weapons data array & average shoot/hit rate detection
+	* SecretBoss 	- Testing this include and using it!
+
 */
 
 #define WEAPON_UNARMED 			0
@@ -345,11 +352,13 @@ static Float:SS_Armour[MAX_PLAYERS];
 static SS_Money[MAX_PLAYERS];
 
 static SS_LastExplosive[MAX_PLAYERS];
+static SS_LastFireSource[MAX_PLAYERS];
+
 static SS_WeaponData[MAX_PLAYERS][13][2];
 static SS_LastClick[MAX_PLAYERS];
 static SS_LastClickWeapon[MAX_PLAYERS];
 
-static SS_KnifedBy[MAX_PLAYERS];
+static SS_KilledData[MAX_PLAYERS][2];
 
 static bool:SS_Update[MAX_PLAYERS];
 
@@ -361,27 +370,123 @@ public	__SetVendingMachine(i, set)
     SS_VendingMachineObject[i] = set;
 }
 
-stock EnableVendingMachines()
+stock static SS_CreateVendingMachines()
 {
-    for (new i, j = sizeof(SS_VendingMachine); i < j; i++)
+	for (new i, j = sizeof(SS_VendingMachine); i < j; i++)
 	{
-		#if defined STREAMER_TYPE_OBJECT
-		    if (IsValidDynamicObject(SS_VendingMachineObject[i]))
-		    {
-		        DestroyDynamicObject(SS_VendingMachineObject[i]);
-		    }
-			SS_VendingMachineObject[i] = CreateDynamicObject(SS_VendingMachine[i][SS_vmModel], SS_VendingMachine[i][SS_vmPosX], SS_VendingMachine[i][SS_vmPosY], SS_VendingMachine[i][SS_vmPosZ], SS_VendingMachine[i][SS_vmRotX], SS_VendingMachine[i][SS_vmRotY], SS_VendingMachine[i][SS_vmRotZ], .interiorid = SS_VendingMachine[i][SS_vmInterior]);
+	    #if defined STREAMER_TYPE_OBJECT
+			if (! IsValidDynamicObject(SS_VendingMachineObject[i]))
+				SS_VendingMachineObject[i] = CreateDynamicObject(SS_VendingMachine[i][SS_vmModel], SS_VendingMachine[i][SS_vmPosX], SS_VendingMachine[i][SS_vmPosY], SS_VendingMachine[i][SS_vmPosZ], SS_VendingMachine[i][SS_vmRotX], SS_VendingMachine[i][SS_vmRotY], SS_VendingMachine[i][SS_vmRotZ], .interiorid = SS_VendingMachine[i][SS_vmInterior]);
 		#else
-		    if (IsValidObject(SS_VendingMachineObject[i]))
-		    {
-		        DestroyObject(SS_VendingMachineObject[i]);
-		    }
-			SS_VendingMachineObject[i] = CreateObject(SS_VendingMachine[i][SS_vmModel], SS_VendingMachine[i][SS_vmPosX], SS_VendingMachine[i][SS_vmPosY], SS_VendingMachine[i][SS_vmPosZ], SS_VendingMachine[i][SS_vmRotX], SS_VendingMachine[i][SS_vmRotY], SS_VendingMachine[i][SS_vmRotZ]);
+		 	if (! IsValidObject(SS_VendingMachineObject[i]))
+				SS_VendingMachineObject[i] = CreateObject(SS_VendingMachine[i][SS_vmModel], SS_VendingMachine[i][SS_vmPosX], SS_VendingMachine[i][SS_vmPosY], SS_VendingMachine[i][SS_vmPosZ], SS_VendingMachine[i][SS_vmRotX], SS_VendingMachine[i][SS_vmRotY], SS_VendingMachine[i][SS_vmRotZ]);
 		#endif
-		
+
 		CallRemoteFunction("__SetVendingMachine", "ii", i, SS_VendingMachineObject[i]);
 	}
 }
+
+stock static SS_DestroyVendingMachines()
+{
+	for (new i, j = sizeof(SS_VendingMachine); i < j; i++)
+	{
+		#if defined STREAMER_TYPE_OBJECT
+		    if (IsValidDynamicObject(SS_VendingMachineObject[i]))
+		    	DestroyDynamicObject(SS_VendingMachineObject[i]);
+		#else
+		    if (IsValidObject(SS_VendingMachineObject[i]))
+		    	DestroyObject(SS_VendingMachineObject[i]);
+		#endif
+	}
+}
+
+#if ! defined FILTERSCRIPT
+	public OnFilterScriptExit()
+#else
+	public OnGameModeInit()
+#endif
+{
+	SS_CreateVendingMachines();
+
+	#if ! defined FILTERSCRIPT
+		#if defined SS_OnGameModeInit
+			return SS_OnGameModeInit();
+		#else
+			return 1;
+		#endif
+	#else
+		#if defined SS_OnFilterScriptInit
+			return SS_OnFilterScriptInit();
+		#else
+			return 1;
+		#endif
+	#endif
+}
+#if ! defined FILTERSCRIPT
+	#if defined _ALS_OnGameModeInit
+		#undef OnGameModeInit
+	#else
+		#define _ALS_OnGameModeInit
+	#endif
+	#define OnGameModeInit SS_OnGameModeInit
+	#if defined SS_OnGameModeInit
+		forward SS_OnGameModeInit();
+	#endif
+#else
+	#if defined _ALS_OnFilterScriptInit
+		#undef OnFilterScriptInit
+	#else
+		#define _ALS_OnFilterScriptInit
+	#endif
+	#define OnFilterScriptInit SS_OnFilterScriptInit
+	#if defined SS_OnFilterScriptInit
+		forward SS_OnFilterScriptInit();
+	#endif
+#endif
+
+#if ! defined FILTERSCRIPT
+	public OnGameModeExit()
+#else
+	public OnFilterScriptExit()
+#endif
+{
+	SS_DestroyVendingMachines();
+
+	#if ! defined FILTERSCRIPT
+		#if defined SS_OnGameModeExit
+			return SS_OnGameModeExit();
+		#else
+			return 1;
+		#endif
+	#else
+		#if defined SS_OnFilterScriptExit
+			return SS_OnFilterScriptExit();
+		#else
+			return 1;
+		#endif
+	#endif
+}
+#if ! defined FILTERSCRIPT
+	#if defined _ALS_OnGameModeExit
+		#undef OnGameModeExit
+	#else
+		#define _ALS_OnGameModeExit
+	#endif
+	#define OnGameModeExit SS_OnGameModeExit
+	#if defined SS_OnGameModeExit
+		forward SS_OnGameModeExit();
+	#endif
+#else
+	#if defined _ALS_OnFilterScriptExit
+		#undef OnFilterScriptExit
+	#else
+		#define _ALS_OnFilterScriptExit
+	#endif
+	#define OnFilterScriptExit SS_OnFilterScriptExit
+	#if defined SS_OnFilterScriptExit
+		forward SS_OnFilterScriptExit();
+	#endif
+#endif
 
 stock Float:SS_GetDistanceBetweenPoints(Float:x1,Float:y1,Float:z1,Float:x2,Float:y2,Float:z2)
 {
@@ -394,7 +499,7 @@ stock SS_RemoveBuildingForPlayer(playerid, modelid, Float:fX, Float:fY, Float:fZ
 	{
 		return false;
 	}
-	
+
 	for (new i, j = sizeof(SS_VendingMachine); i < j; i++)
 	{
 	    if (modelid == SS_VendingMachine[i][SS_vmModel])
@@ -414,7 +519,7 @@ stock SS_RemoveBuildingForPlayer(playerid, modelid, Float:fX, Float:fY, Float:fZ
 				        return true;
 				    }
 				#endif
-				
+
 				break;
 		    }
  		}
@@ -493,7 +598,7 @@ stock SS_SetPlayerHealth(playerid, Float:health)
 
 	if (health > 100.0)
 	{
-	    return SetPlayerHealth(playerid, 100.0);
+	    return SetPlayerHealth(playerid, 200.0);
 	}
 	else
 	{
@@ -548,7 +653,7 @@ stock SS_SetPlayerArmour(playerid, Float:armour)
 
 	if (armour > 100.0)
 	{
-	    return SetPlayerArmour(playerid, 100.0);
+	    return SetPlayerArmour(playerid, 200.0);
 	}
 	else
 	{
@@ -891,6 +996,7 @@ public OnPlayerConnect(playerid)
 	SS_Teamid[playerid] = NO_TEAM;
 
 	SS_LastExplosive[playerid] = 0;
+	SS_LastFireSource[playerid] = 0;
 
 	SS_LastShotIdx[playerid] = 0;
 
@@ -1019,9 +1125,11 @@ public OnPlayerRequestSpawn(playerid)
 public OnPlayerSpawn(playerid)
 {
     SS_Health[playerid] = 100.0;
-    OLD_SetPlayerHealth(playerid, 100.0);
+    OLD_SetPlayerHealth(playerid, 200.0);
 
-    SS_KnifedBy[playerid] = INVALID_PLAYER_ID;
+    SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
+    SS_KilledData[playerid][1] = -1;
+    
     SS_LastShot[playerid][SS_shotHitid] = -1;
 
 	// Adjusting weapons according to spawninfo
@@ -1307,7 +1415,7 @@ public OnPlayerWeaponShot(playerid, weaponid, hittype, hitid, Float:fX, Float:fY
 						health = 0.0;
 					}
 					SetVehicleHealth(hitid, health);
-					
+
 					return 0;
 				}
 			}
@@ -1467,12 +1575,45 @@ stock static bool:SS_ProcessDamage(&playerid, &issuerid, &Float:amount, &weaponi
 		}
 	}
 
-	// Detecting what caused the damage
+	// Detecting what caused the damage when its an explosion
 	if (weaponid == WEAPON_EXPLOSION)
 	{
-		if (issuerid != INVALID_PLAYER_ID && GetPlayerState(issuerid) != PLAYER_STATE_DRIVER && SS_LastExplosive[issuerid])
+	    if (issuerid == INVALID_PLAYER_ID)
+	    {
+			if (SS_LastExplosive[issuerid])
+			{
+				weaponid = SS_LastExplosive[issuerid];
+				SS_LastExplosive[issuerid] = 0;
+			}
+		}
+		else
 		{
-			weaponid = SS_LastExplosive[playerid];
+			if (SS_LastExplosive[playerid])
+			{
+				weaponid = SS_LastExplosive[playerid];
+				SS_LastExplosive[playerid] = 0;
+			}
+		}
+	}
+
+	// Detecting what caused the damage if a fire source
+	if (weaponid == WEAPON_FLAMETHROWER)
+	{
+	    if (issuerid == INVALID_PLAYER_ID)
+	    {
+			if (SS_LastFireSource[issuerid])
+			{
+				weaponid = SS_LastFireSource[issuerid];
+				SS_LastFireSource[issuerid] = 0;
+			}
+		}
+		else
+		{
+			if (SS_LastFireSource[playerid])
+			{
+				weaponid = SS_LastFireSource[playerid];
+				SS_LastFireSource[playerid] = 0;
+			}
 		}
 	}
 
@@ -1655,7 +1796,6 @@ stock static bool:HasSameTeam(playerid, otherid)
 	return bool:(SS_Teamid[playerid] == SS_Teamid[otherid]);
 }
 
-
 public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 {
 	new tick = GetTickCount();
@@ -1696,34 +1836,21 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 		}
 	}
 
-	// Additional checks
-	if (damagedid != INVALID_PLAYER_ID)
-	{
-		// Check for OnPlayerWeaponShot, if it returned 0, that means no damage is given
-	    if (SS_LastShot[playerid][SS_shotHittype] == BULLET_HIT_TYPE_PLAYER && SS_LastShot[playerid][SS_shotHitid] == damagedid)
-	    {
-	        if (! SS_LastShot[playerid][SS_shotReturn])
-	        {
-	            SS_LastShot[playerid][SS_shotReturn] = true;
-	            SS_LastShot[playerid][SS_shotHitid] = -1;
+	// Check for OnPlayerWeaponShot, if it returned 0, that means no damage is given
+	if (SS_LastShot[playerid][SS_shotHittype] == BULLET_HIT_TYPE_PLAYER && SS_LastShot[playerid][SS_shotHitid] == damagedid)
+    {
+        if (! SS_LastShot[playerid][SS_shotReturn])
+        {
+            SS_LastShot[playerid][SS_shotReturn] = true;
+            SS_LastShot[playerid][SS_shotHitid] = -1;
 
-				#if defined SS_OnPlayerGiveDamage
-					return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
-				#else
-					return 1;
-				#endif
-	        }
-	    }
-		// Check for same teams
-		if (HasSameTeam(playerid, damagedid))
-		{
-		    #if defined SS_OnPlayerGiveDamage
+			#if defined SS_OnPlayerGiveDamage
 				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
 			#else
 				return 1;
 			#endif
-		}
-	}
+        }
+    }
 
 	// Detect invalid shots fired, multiple hits and so on
     if (((WEAPON_COLT45 <= weaponid <= WEAPON_SNIPER) || weaponid == WEAPON_MINIGUN) && _:amount != _:2.6400001049041748046875 && ! (IsPlayerInAnyVehicle(playerid) && GetPlayerVehicleSeat(playerid) == 0))
@@ -1751,6 +1878,79 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 
 		SS_LastShot[playerid][SS_shotHits] += 1;
 	}
+	
+	// Process knife stab
+	if (weaponid == WEAPON_KNIFE && _:amount == _:0.0)
+	{
+		// Check for same teams
+		if (HasSameTeam(playerid, damagedid))
+		{
+		    #if defined SS_OnPlayerGiveDamage
+				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
+			#else
+				return 1;
+			#endif
+		}
+		
+	    if (GetPVarType(damagedid, "SS_OnPlayerKnifed") == PLAYER_VARTYPE_NONE)
+		{
+			SetPVarInt(damagedid, "SS_OnPlayerKnifed", SetTimerEx("SS_OnPlayerKnifed", 3000 + GetPlayerPing(damagedid), false, "ii", damagedid, playerid));
+		}
+		else
+		{
+		    #if defined SS_OnPlayerGiveDamage
+				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
+			#else
+				return 1;
+			#endif
+		}
+	}
+	else
+	{
+	    // Process damage values and weapon ids
+		if (! SS_ProcessDamage(damagedid, playerid, amount, weaponid, bodypart))
+		{
+			ClearAnimations(playerid);
+		    return 0;
+		}
+
+		// Check for same teams
+		if (HasSameTeam(playerid, damagedid))
+		{
+		    #if defined SS_OnPlayerGiveDamage
+				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
+			#else
+				return 1;
+			#endif
+		}
+	}
+
+	// If the damage is valid, reduce armour or health
+	if (amount >= SS_Armour[damagedid] + SS_Health[damagedid])
+    {
+	    OLD_SetPlayerArmour(damagedid, 0.0);
+    	OLD_SetPlayerHealth(damagedid, 0.0);
+
+	    SS_KilledData[damagedid][0] = playerid;
+	    SS_KilledData[damagedid][1] = weaponid;
+    }
+    else
+    {
+        if (SS_Armour[damagedid])
+		{
+		    new Float:loss = SS_Armour[damagedid] - amount;
+			OLD_SetPlayerArmour(damagedid, SS_Armour[damagedid] - amount);
+
+			if (loss < 0.0)
+			{
+			    OLD_SetPlayerHealth(damagedid, SS_Health[damagedid] + loss);
+			}
+		}
+		else
+		{
+		    OLD_SetPlayerHealth(damagedid, SS_Health[damagedid] - amount);
+		}
+   	}
 
 	#if defined SS_OnPlayerGiveDamage
 		return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
@@ -1770,92 +1970,54 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 
 public OnPlayerTakeDamage(playerid, issuerid, Float:amount, weaponid, bodypart)
 {
-	// Process damage
-	if (weaponid != WEAPON_KNIFE && amount > SS_WeaponDamage[WEAPON_KNIFE])
+	if (issuerid == INVALID_PLAYER_ID)
 	{
-		if (! SS_ProcessDamage(playerid, issuerid, amount, weaponid, bodypart))
+	    // Process damage values and weapon ids
+	    if (! SS_ProcessDamage(playerid, issuerid, amount, weaponid, bodypart))
 		{
 			ClearAnimations(issuerid);
 		    return 0;
 		}
-	}
-
-	if (issuerid != INVALID_PLAYER_ID)
-	{
-		// Check for OnPlayerWeaponShot, if it returned 0, that means no damage is given
-	    if (SS_LastShot[issuerid][SS_shotHittype] == BULLET_HIT_TYPE_PLAYER && SS_LastShot[issuerid][SS_shotHitid] == playerid)
-	    {
-	        if (! SS_LastShot[issuerid][SS_shotReturn])
-	        {
-	            SS_LastShot[issuerid][SS_shotReturn] = true;
-	            SS_LastShot[issuerid][SS_shotHitid] = -1;
-
-				#if defined SS_OnPlayerTakeDamage
-					return SS_OnPlayerTakeDamage(playerid, issuerid, amount, weaponid, bodypart);
-				#else
-					return 1;
-				#endif
-	        }
-	    }
-		// Check for same teams
-		if (HasSameTeam(playerid, issuerid))
+		
+		// Collision damage only affects Health
+		if (weaponid == WEAPON_COLLISION)
 		{
-			#if defined SS_OnPlayerTakeDamage
-				return SS_OnPlayerTakeDamage(playerid, issuerid, amount, weaponid, bodypart);
-			#else
-				return 1;
-			#endif
-		}
-	}
+		    OLD_SetPlayerHealth(playerid, SS_Health[playerid] - amount);
 
-	// Process knife stab
-	if (weaponid == WEAPON_KNIFE && _:amount == _:0.0)
-	{
-	    if (GetPVarType(playerid, "SS_OnPlayerKnifed") == PLAYER_VARTYPE_NONE)
-		{
-			SetPVarInt(playerid, "SS_OnPlayerKnifed", SetTimerEx("SS_OnPlayerKnifed", 3000 + GetPlayerPing(playerid), false, "ii", playerid, issuerid));
+		    SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
+		    SS_KilledData[playerid][1] = WEAPON_COLLISION;
 		}
 		else
 		{
-		    #if defined SS_OnPlayerTakeDamage
-				return SS_OnPlayerTakeDamage(playerid, issuerid, amount, weaponid, bodypart);
-			#else
-				return 1;
-			#endif
+		    // If the damage is valid from other weaponids, reduce armour or health
+			if (amount >= SS_Armour[playerid] + SS_Health[playerid])
+		    {
+			    OLD_SetPlayerArmour(playerid, 0.0);
+		    	OLD_SetPlayerHealth(playerid, 0.0);
+
+			    SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
+			    SS_KilledData[playerid][1] = weaponid;
+		    }
+		    else
+		    {
+		        if (SS_Armour[playerid])
+				{
+				    new Float:loss = SS_Armour[playerid] - amount;
+					OLD_SetPlayerArmour(playerid, SS_Armour[playerid] - amount);
+
+					if (loss < 0.0)
+					{
+					    OLD_SetPlayerHealth(playerid, SS_Health[playerid] + loss);
+					}
+				}
+				else
+				{
+				    OLD_SetPlayerHealth(playerid, SS_Health[playerid] - amount);
+				}
+		   	}
 		}
 	}
-
-	// If the damage is valid, reduce armour or health
-	if (weaponid == WEAPON_COLLISION)
-	{
-	    SetPlayerHealth(playerid, SS_Health[playerid] - amount);
-	}
-	else
-	{
-	    if (amount >= SS_Armour[playerid] + SS_Health[playerid])
-	    {
-		    SetPlayerArmour(playerid, 0.0);
-	    	SetPlayerHealth(playerid, 0.0);
-	    }
-	    else
-	    {
-	        if (SS_Armour[playerid])
-			{
-			    new Float:loss = SS_Armour[playerid] - amount;
-   				SetPlayerArmour(playerid, SS_Armour[playerid] - amount);
-
-				if (loss < 0.0)
-				{
-				    SetPlayerHealth(playerid, SS_Health[playerid] + loss);
-				}
-			}
-			else
-			{
-			    SetPlayerHealth(playerid, SS_Health[playerid] - amount);
-			}
-	    }
-    }
-
+	
 	#if defined SS_OnPlayerTakeDamage
 		return SS_OnPlayerTakeDamage(playerid, issuerid, amount, weaponid, bodypart);
 	#else
@@ -1889,7 +2051,8 @@ public  SS_OnPlayerKnifeComplete(playerid, killerid)
 	SS_Health[playerid] = 0.0;
     OLD_SetPlayerHealth(playerid, 0.0);
 
-	SS_KnifedBy[playerid] = killerid;
+    SS_KilledData[playerid][0] = killerid;
+    SS_KilledData[playerid][1] = 4;
 }
 
 public OnPlayerDeath(playerid, killerid, reason)
@@ -1897,12 +2060,11 @@ public OnPlayerDeath(playerid, killerid, reason)
 	SS_Health[playerid] = 0.0;
 	SS_Armour[playerid] = 0.0;
 
-	// Playerid was knifed
-	if (SS_KnifedBy[playerid] != INVALID_PLAYER_ID)
-	{
-	    killerid = SS_KnifedBy[playerid];
-	    reason = 4;
-	}
+	if (SS_KilledData[playerid][0] != INVALID_PLAYER_ID)
+		killerid = SS_KilledData[playerid][0];
+		
+	if (SS_KilledData[playerid][1] != -1)
+	    reason = SS_KilledData[playerid][1];
 
 	#if defined SS_OnPlayerDeath
 		return SS_OnPlayerDeath(playerid, killerid, reason);
@@ -1927,9 +2089,9 @@ public OnPlayerUpdate(playerid)
 		// Check for health hack
 		new Float:health;
 		OLD_GetPlayerHealth(playerid, health);
-		if (SS_Health[playerid] > 100.0 && health < 100.0)
+		if (SS_Health[playerid] > 100.0 && health < 200.0)
 		{
-			OLD_SetPlayerHealth(playerid, 100.0);
+			OLD_SetPlayerHealth(playerid, 200.0);
 		}
 		else if (health != SS_Health[playerid])
 		{
@@ -1939,9 +2101,9 @@ public OnPlayerUpdate(playerid)
 		// Check for armour hack
 		new Float:armour;
 		OLD_GetPlayerArmour(playerid, armour);
-		if (SS_Armour[playerid] > 100.0 && armour < 100.0)
+		if (SS_Armour[playerid] > 100.0 && armour < 200.0)
 		{
-			OLD_SetPlayerArmour(playerid, 100.0);
+			OLD_SetPlayerArmour(playerid, 200.0);
 		}
 		else if (armour != SS_Armour[playerid])
 		{
@@ -1983,6 +2145,10 @@ public OnPlayerUpdate(playerid)
 					    if (SS_LastClickWeapon[playerid] == WEAPON_GRENADE || SS_LastClickWeapon[playerid] == WEAPON_SATCHEL)
 						{
 							SS_LastExplosive[playerid] = SS_LastClickWeapon[playerid];
+						}
+						else if (SS_LastClickWeapon[playerid] == WEAPON_MOLTOV)
+						{
+						    SS_LastFireSource[playerid] = SS_LastClickWeapon[playerid];
 						}
 
 						slot = SS_GetWeaponSlot(SS_LastClickWeapon[playerid]);
@@ -2049,17 +2215,11 @@ public OnPlayerUpdate(playerid)
 #if ! defined KEY_AIM
 	#define KEY_AIM (128)
 #endif
+
 #if ! defined PRESSED
 	#define PRESSED(%0) (((newkeys & (%0)) == (%0)) && ((oldkeys & (%0)) != (%0)))
 #endif
-/*
-#if ! defined HOLDING
-	#define HOLDING(%0) ((newkeys & (%0)) == (%0))
-#endif
-#if ! defined RELEASED
-	#define RELEASED(%0) (((newkeys & (%0)) != (%0)) && ((oldkeys & (%0)) == (%0)))
-#endif
-*/
+
 public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 {
     if (GetPlayerState(playerid) == PLAYER_STATE_ONFOOT)
@@ -2071,10 +2231,10 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 			    if (GetPlayerAnimationIndex(playerid) != 1660 && ! SS_VendingMachineTimer[playerid])
 				{
 		  			new interiorid = GetPlayerInterior(playerid);
-		  			
+
 					new Float:z;
                    	GetPlayerPos(playerid, z, z, z);
-                   	
+
 					for (new i, j = sizeof(SS_VendingMachine); i < j; i++)
 					{
 					    #if defined STREAMER_TYPE_OBJECT
@@ -2088,7 +2248,7 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 						        continue;
 						    }
 						#endif
-					    
+
 						if (interiorid != SS_VendingMachine[i][SS_vmInterior])
 		    			{
 						    continue;
@@ -2098,7 +2258,7 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 						{
 							continue;
 						}
-						
+
 						if (floatabs(z - SS_VendingMachine[i][SS_vmPosZ]) > 1.5)
 						{
 							continue;
@@ -2112,9 +2272,9 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 
 						SetPlayerPos(playerid, SS_VendingMachine[i][SS_vmFrontX], SS_VendingMachine[i][SS_vmFrontY], z);
                     	SetPlayerFacingAngle(playerid, SS_VendingMachine[i][SS_vmRotZ]);
-                    	
+
                         ApplyAnimation(playerid, "VENDING", "VEND_USE", 4.1, 0, 0, 1, 0, 0, 1);
-                        
+
                         PlayerPlaySound(playerid, 42600, 0.0, 0.0, 0.0);
 
 						SS_VendingMachineTimer[playerid] = SetTimerEx("OnPlayerUseVendingMachine", 2500, false, "i", playerid);
@@ -2143,7 +2303,7 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 					}
 				}
 			}
-		}	
+		}
 	}
 
 	#if defined SS_OnPlayerKeyStateChange
