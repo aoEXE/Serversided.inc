@@ -355,8 +355,6 @@ static SS_LastExplosive[MAX_PLAYERS];
 static SS_LastFireSource[MAX_PLAYERS];
 
 static SS_WeaponData[MAX_PLAYERS][13][2];
-static SS_LastClick[MAX_PLAYERS];
-static SS_LastClickWeapon[MAX_PLAYERS];
 
 static SS_KilledData[MAX_PLAYERS][2];
 
@@ -989,8 +987,6 @@ public OnPlayerConnect(playerid)
 		SS_WeaponData[playerid][i][0] = 0;
 		SS_WeaponData[playerid][i][1] = 0;
 	}
-	SS_LastClick[playerid] = 0;
-	SS_LastClickWeapon[playerid] = 0;
 
 	SS_Classid[playerid] = 0;
 	SS_Teamid[playerid] = NO_TEAM;
@@ -1129,7 +1125,7 @@ public OnPlayerSpawn(playerid)
 
     SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
     SS_KilledData[playerid][1] = -1;
-    
+
     SS_LastShot[playerid][SS_shotHitid] = -1;
 
 	// Adjusting weapons according to spawninfo
@@ -1578,7 +1574,7 @@ stock static bool:SS_ProcessDamage(&playerid, &issuerid, &Float:amount, &weaponi
 	// Detecting what caused the damage when its an explosion
 	if (weaponid == WEAPON_EXPLOSION)
 	{
-	    if (issuerid == INVALID_PLAYER_ID)
+	    if (issuerid != INVALID_PLAYER_ID)
 	    {
 			if (SS_LastExplosive[issuerid])
 			{
@@ -1586,33 +1582,16 @@ stock static bool:SS_ProcessDamage(&playerid, &issuerid, &Float:amount, &weaponi
 				SS_LastExplosive[issuerid] = 0;
 			}
 		}
-		else
-		{
-			if (SS_LastExplosive[playerid])
-			{
-				weaponid = SS_LastExplosive[playerid];
-				SS_LastExplosive[playerid] = 0;
-			}
-		}
 	}
-
 	// Detecting what caused the damage if a fire source
-	if (weaponid == WEAPON_FLAMETHROWER)
+	else if (weaponid == WEAPON_FLAMETHROWER)
 	{
-	    if (issuerid == INVALID_PLAYER_ID)
+	    if (issuerid != INVALID_PLAYER_ID)
 	    {
 			if (SS_LastFireSource[issuerid])
 			{
 				weaponid = SS_LastFireSource[issuerid];
 				SS_LastFireSource[issuerid] = 0;
-			}
-		}
-		else
-		{
-			if (SS_LastFireSource[playerid])
-			{
-				weaponid = SS_LastFireSource[playerid];
-				SS_LastFireSource[playerid] = 0;
 			}
 		}
 	}
@@ -1878,7 +1857,7 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 
 		SS_LastShot[playerid][SS_shotHits] += 1;
 	}
-	
+
 	// Process knife stab
 	if (weaponid == WEAPON_KNIFE && _:amount == _:0.0)
 	{
@@ -1891,7 +1870,7 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 				return 1;
 			#endif
 		}
-		
+
 	    if (GetPVarType(damagedid, "SS_OnPlayerKnifed") == PLAYER_VARTYPE_NONE)
 		{
 			SetPVarInt(damagedid, "SS_OnPlayerKnifed", SetTimerEx("SS_OnPlayerKnifed", 3000 + GetPlayerPing(damagedid), false, "ii", damagedid, playerid));
@@ -1978,7 +1957,7 @@ public OnPlayerTakeDamage(playerid, issuerid, Float:amount, weaponid, bodypart)
 			ClearAnimations(issuerid);
 		    return 0;
 		}
-		
+
 		// Collision damage only affects Health
 		if (weaponid == WEAPON_COLLISION)
 		{
@@ -2017,7 +1996,7 @@ public OnPlayerTakeDamage(playerid, issuerid, Float:amount, weaponid, bodypart)
 		   	}
 		}
 	}
-	
+
 	#if defined SS_OnPlayerTakeDamage
 		return SS_OnPlayerTakeDamage(playerid, issuerid, amount, weaponid, bodypart);
 	#else
@@ -2062,7 +2041,7 @@ public OnPlayerDeath(playerid, killerid, reason)
 
 	if (SS_KilledData[playerid][0] != INVALID_PLAYER_ID)
 		killerid = SS_KilledData[playerid][0];
-		
+
 	if (SS_KilledData[playerid][1] != -1)
 	    reason = SS_KilledData[playerid][1];
 
@@ -2119,77 +2098,28 @@ public OnPlayerUpdate(playerid)
 
 		//Weapons check
 		new weapon = GetPlayerWeapon(playerid);
-		new slot;
-		if (SS_LastClickWeapon[playerid])
+		new slot = SS_GetWeaponSlot(weapon);
+		if (SS_WeaponData[playerid][slot][0] != weapon)
 		{
-			switch (SS_LastClickWeapon[playerid])
-			{
-				case WEAPON_TEARGAS, WEAPON_MOLTOV, WEAPON_GRENADE, WEAPON_SATCHEL:
-				{
-				    if (GetTickCount() - SS_LastClick[playerid] < 430)
+			OLD_SetPlayerAmmo(playerid, weapon, 0);
+			OLD_GivePlayerWeapon(playerid, SS_WeaponData[playerid][slot][0], SS_WeaponData[playerid][slot][1]);
+		}
+		else
+		{
+		    switch (weapon)
+		    {
+				case WEAPON_COLT45..WEAPON_SNIPER, WEAPON_MINIGUN, WEAPON_SATCHEL:
+		    	{
+					if (SS_WeaponData[playerid][slot][1] != OLD_GetPlayerAmmo(playerid))
 					{
-					    if (weapon != SS_LastClickWeapon[playerid])
-					    {
-					        SS_LastClickWeapon[playerid] = 0;
-					    }
-					    else
-					    {
-					        if (! (644 <= GetPlayerAnimationIndex(playerid) <= 646))
-					        {
-					        	SS_LastClickWeapon[playerid] = 0;
-					        }
-					    }
-					}
-					else
-					{
-					    if (SS_LastClickWeapon[playerid] == WEAPON_GRENADE || SS_LastClickWeapon[playerid] == WEAPON_SATCHEL)
-						{
-							SS_LastExplosive[playerid] = SS_LastClickWeapon[playerid];
-						}
-						else if (SS_LastClickWeapon[playerid] == WEAPON_MOLTOV)
-						{
-						    SS_LastFireSource[playerid] = SS_LastClickWeapon[playerid];
-						}
-
-						slot = SS_GetWeaponSlot(SS_LastClickWeapon[playerid]);
-						SS_WeaponData[playerid][slot][1]--;
-						if (! SS_WeaponData[playerid][slot][1])
-						{
-							SS_WeaponData[playerid][slot][0] = 0;
-							SS_WeaponData[playerid][slot][1] = 0;
-						}
-
-						SS_LastClickWeapon[playerid] = 0;
+						OLD_SetPlayerAmmo(playerid, weapon, SS_WeaponData[playerid][slot][1]);
 					}
 				}
-			}
-		}
-		if (! SS_LastClickWeapon[playerid])
-		{
-			slot = SS_GetWeaponSlot(weapon);
-
-			if (SS_WeaponData[playerid][slot][0] != weapon)
-			{
-				OLD_SetPlayerAmmo(playerid, weapon, 0);
-				OLD_GivePlayerWeapon(playerid, SS_WeaponData[playerid][slot][0], SS_WeaponData[playerid][slot][1]);
-			}
-			else
-			{
-			    switch (weapon)
-			    {
-					case WEAPON_GRENADE..WEAPON_MOLTOV, WEAPON_COLT45..WEAPON_SNIPER, WEAPON_MINIGUN, WEAPON_SATCHEL:
-			    	{
-						if (SS_WeaponData[playerid][slot][1] != OLD_GetPlayerAmmo(playerid))
-						{
-							OLD_SetPlayerAmmo(playerid, weapon, SS_WeaponData[playerid][slot][1]);
-						}
-					}
-					default:
+				default:
+				{
+					if (OLD_GetPlayerAmmo(playerid) > SS_WeaponData[playerid][slot][1])
 					{
-						if (OLD_GetPlayerAmmo(playerid) > SS_WeaponData[playerid][slot][1])
-						{
-							OLD_SetPlayerAmmo(playerid, weapon, SS_WeaponData[playerid][slot][1]);
-						}
+						OLD_SetPlayerAmmo(playerid, weapon, SS_WeaponData[playerid][slot][1]);
 					}
 				}
 			}
@@ -2289,17 +2219,13 @@ public OnPlayerKeyStateChange(playerid, newkeys, oldkeys)
 			    new weaponid = GetPlayerWeapon(playerid);
 				switch (weaponid)
 				{
-					case WEAPON_TEARGAS, WEAPON_MOLTOV, WEAPON_GRENADE, WEAPON_SATCHEL:
-					{
-					    if (! SS_LastClickWeapon[playerid])
-					    {
-					        SS_LastClickWeapon[playerid] = weaponid;
-					    	SS_LastClick[playerid] = GetTickCount();
-					    }
-					}
-					case WEAPON_ROCKETLAUNCHER, WEAPON_HEATSEEKER:
+					case WEAPON_GRENADE, WEAPON_SATCHEL, WEAPON_ROCKETLAUNCHER, WEAPON_HEATSEEKER:
 					{
 					    SS_LastExplosive[playerid] = weaponid;
+					}
+					case WEAPON_MOLTOV:
+					{
+					    SS_LastFireSource[playerid] = weaponid;
 					}
 				}
 			}
