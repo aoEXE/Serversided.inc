@@ -1,3 +1,5 @@
+#include <a_samp>
+
 #if defined _serversided_included
 	#endinput
 #endif
@@ -12,7 +14,7 @@
 	\____/ \___|_|    \_/ \___|_|  |___/_|\__,_|\___|\__,_(_)_|_| |_|\___|
 
 	VERSION:
-	* 1.7 (updated: 3 Feb, 2016)
+	* 1.7.2 (updated: 3 Feb, 2016)
 
 	FILE:
 	* serversided.inc (include)
@@ -1765,7 +1767,7 @@ stock static bool:SS_ProcessDamage(&playerid, &issuerid, &Float:amount, &weaponi
 	return true;
 }
 
-stock static bool:HasSameTeam(playerid, otherid)
+stock static bool:SS_HasSameTeam(playerid, otherid)
 {
 	if (SS_Teamid[playerid] == NO_TEAM || SS_Teamid[otherid] == NO_TEAM)
 	{
@@ -1773,6 +1775,64 @@ stock static bool:HasSameTeam(playerid, otherid)
 	}
 
 	return bool:(SS_Teamid[playerid] == SS_Teamid[otherid]);
+}
+
+stock static SS_InflictDamage(playerid, Float:amount, bool:only_health)
+{
+	if (only_health)
+	{
+	    if (amount >= SS_Health[playerid])
+	    	SS_Health[playerid] = 0.0;
+		else
+	    	SS_Health[playerid] -= amount;
+
+		OLD_SetPlayerHealth(playerid, SS_Health[playerid]);
+	}
+	else
+	{
+		if (amount >= SS_Armour[playerid] + SS_Health[playerid])
+	    {
+			SS_Health[playerid] = 0.0;
+	        SS_Armour[playerid] = 0.0;
+
+	    	OLD_SetPlayerHealth(playerid, 0.0);
+		    OLD_SetPlayerArmour(playerid, 0.0);
+	    }
+	    else
+	    {
+	        if (SS_Armour[playerid])
+			{
+			    new Float:loss = SS_Armour[playerid] - amount;
+			    if (! loss)
+			    {
+			        SS_Armour[playerid] = 0.0;
+					OLD_SetPlayerArmour(playerid, 0.0);
+
+					SS_Health[playerid] += loss;
+					if (SS_Health[playerid] > 100.0)
+						OLD_SetPlayerHealth(playerid, 200.0);
+					else
+						OLD_SetPlayerHealth(playerid, SS_Health[playerid]);
+				}
+				else
+				{
+			        SS_Armour[playerid] = loss;
+					if (SS_Armour[playerid] > 100.0)
+						OLD_SetPlayerArmour(playerid, 200.0);
+					else
+						OLD_SetPlayerArmour(playerid, SS_Armour[playerid]);
+				}
+			}
+			else
+			{
+				SS_Health[playerid] -= amount;
+				if (SS_Health[playerid] > 100.0)
+					OLD_SetPlayerHealth(playerid, 200.0);
+				else
+					OLD_SetPlayerHealth(playerid, SS_Health[playerid]);
+			}
+		}
+   	}
 }
 
 public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
@@ -1862,7 +1922,7 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 	if (weaponid == WEAPON_KNIFE && _:amount == _:0.0)
 	{
 		// Check for same teams
-		if (HasSameTeam(playerid, damagedid))
+		if (SS_HasSameTeam(playerid, damagedid))
 		{
 		    #if defined SS_OnPlayerGiveDamage
 				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
@@ -1894,7 +1954,7 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 		}
 
 		// Check for same teams
-		if (HasSameTeam(playerid, damagedid))
+		if (SS_HasSameTeam(playerid, damagedid))
 		{
 		    #if defined SS_OnPlayerGiveDamage
 				return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
@@ -1905,31 +1965,12 @@ public OnPlayerGiveDamage(playerid, damagedid, Float:amount, weaponid, bodypart)
 	}
 
 	// If the damage is valid, reduce armour or health
-	if (amount >= SS_Armour[damagedid] + SS_Health[damagedid])
-    {
-	    OLD_SetPlayerArmour(damagedid, 0.0);
-    	OLD_SetPlayerHealth(damagedid, 0.0);
-
-	    SS_KilledData[damagedid][0] = playerid;
-	    SS_KilledData[damagedid][1] = weaponid;
-    }
-    else
-    {
-        if (SS_Armour[damagedid])
-		{
-		    new Float:loss = SS_Armour[damagedid] - amount;
-			OLD_SetPlayerArmour(damagedid, SS_Armour[damagedid] - amount);
-
-			if (loss < 0.0)
-			{
-			    OLD_SetPlayerHealth(damagedid, SS_Health[damagedid] + loss);
-			}
-		}
-		else
-		{
-		    OLD_SetPlayerHealth(damagedid, SS_Health[damagedid] - amount);
-		}
-   	}
+	SS_InflictDamage(damagedid, amount, false);
+	if (! SS_Health[damagedid])
+ 	{
+	 	SS_KilledData[damagedid][0] = playerid;
+   		SS_KilledData[damagedid][1] = weaponid;
+	}
 
 	#if defined SS_OnPlayerGiveDamage
 		return SS_OnPlayerGiveDamage(playerid, damagedid, amount, weaponid, bodypart);
@@ -1961,39 +2002,22 @@ public OnPlayerTakeDamage(playerid, issuerid, Float:amount, weaponid, bodypart)
 		// Collision damage only affects Health
 		if (weaponid == WEAPON_COLLISION)
 		{
-		    OLD_SetPlayerHealth(playerid, SS_Health[playerid] - amount);
-
-		    SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
-		    SS_KilledData[playerid][1] = WEAPON_COLLISION;
+			SS_InflictDamage(playerid, amount, true);
+			if (! SS_Health[playerid])
+		 	{
+			 	SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
+		   		SS_KilledData[playerid][1] = WEAPON_COLLISION;
+			}
 		}
 		else
 		{
 		    // If the damage is valid from other weaponids, reduce armour or health
-			if (amount >= SS_Armour[playerid] + SS_Health[playerid])
-		    {
-			    OLD_SetPlayerArmour(playerid, 0.0);
-		    	OLD_SetPlayerHealth(playerid, 0.0);
-
-			    SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
-			    SS_KilledData[playerid][1] = weaponid;
-		    }
-		    else
-		    {
-		        if (SS_Armour[playerid])
-				{
-				    new Float:loss = SS_Armour[playerid] - amount;
-					OLD_SetPlayerArmour(playerid, SS_Armour[playerid] - amount);
-
-					if (loss < 0.0)
-					{
-					    OLD_SetPlayerHealth(playerid, SS_Health[playerid] + loss);
-					}
-				}
-				else
-				{
-				    OLD_SetPlayerHealth(playerid, SS_Health[playerid] - amount);
-				}
-		   	}
+			SS_InflictDamage(playerid, amount, false);
+			if (! SS_Health[playerid])
+		 	{
+			 	SS_KilledData[playerid][0] = INVALID_PLAYER_ID;
+		   		SS_KilledData[playerid][1] = weaponid;
+			}
 		}
 	}
 
@@ -2031,7 +2055,7 @@ public  SS_OnPlayerKnifeComplete(playerid, killerid)
     OLD_SetPlayerHealth(playerid, 0.0);
 
     SS_KilledData[playerid][0] = killerid;
-    SS_KilledData[playerid][1] = 4;
+    SS_KilledData[playerid][1] = WEAPON_KNIFE;
 }
 
 public OnPlayerDeath(playerid, killerid, reason)
