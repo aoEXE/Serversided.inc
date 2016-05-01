@@ -1084,12 +1084,12 @@ public OnPlayerRequestSpawn(playerid)
 				    SS_WeaponData[playerid][i][0] = weapon;
     				SS_WeaponData[playerid][i][1] = SS_ClassData[SS_Classid[playerid]][SS_classWeapon1][1];
 				}
-				else if (SS_ClassData[SS_Classid[playerid]][SS_classWeapon2][1] == weapon || SS_ClassData[playerid][SS_classWeapon2][1] != ammo)
+				else if (SS_ClassData[SS_Classid[playerid]][SS_classWeapon2][0] == weapon || SS_ClassData[playerid][SS_classWeapon2][1] != ammo)
 				{
 				    SS_WeaponData[playerid][i][0] = weapon;
     				SS_WeaponData[playerid][i][1] = SS_ClassData[SS_Classid[playerid]][SS_classWeapon2][1];
 				}
-				else if (SS_ClassData[SS_Classid[playerid]][SS_classWeapon3][1] == weapon || SS_ClassData[playerid][SS_classWeapon3][1] != ammo)
+				else if (SS_ClassData[SS_Classid[playerid]][SS_classWeapon3][0] == weapon || SS_ClassData[playerid][SS_classWeapon3][1] != ammo)
 				{
 				    SS_WeaponData[playerid][i][0] = weapon;
     				SS_WeaponData[playerid][i][1] = SS_ClassData[SS_Classid[playerid]][SS_classWeapon3][1];
@@ -1105,7 +1105,7 @@ public OnPlayerRequestSpawn(playerid)
 
 		// Set class info team
 		SS_Teamid[playerid] = SS_ClassData[playerid][SS_classTeam];
-		OLD_SetPlayerTeam(playerid, 0);
+		OLD_SetPlayerTeam(playerid, SS_Teamid[playerid]); //why 0, I think it is right is SS_Teamid[playerid]
 	}
 
 	return ret;
@@ -1142,12 +1142,12 @@ public OnPlayerSpawn(playerid)
 			    SS_WeaponData[playerid][i][0] = weapon;
     			SS_WeaponData[playerid][i][1] = SS_SpawnData[playerid][SS_spawnWeapon1][1];
 			}
-			else if (SS_SpawnData[playerid][SS_spawnWeapon2][1] == weapon || SS_SpawnData[playerid][SS_spawnWeapon2][1] != ammo)
+			else if (SS_SpawnData[playerid][SS_spawnWeapon2][0] == weapon || SS_SpawnData[playerid][SS_spawnWeapon2][1] != ammo)
 			{
 			    SS_WeaponData[playerid][i][0] = weapon;
     			SS_WeaponData[playerid][i][1] = SS_SpawnData[playerid][SS_spawnWeapon2][1];
 			}
-			else if (SS_SpawnData[playerid][SS_spawnWeapon3][1] == weapon || SS_SpawnData[playerid][SS_spawnWeapon3][1] != ammo)
+			else if (SS_SpawnData[playerid][SS_spawnWeapon3][0] == weapon || SS_SpawnData[playerid][SS_spawnWeapon3][1] != ammo)
 			{
 			    SS_WeaponData[playerid][i][0] = weapon;
     			SS_WeaponData[playerid][i][1] = SS_SpawnData[playerid][SS_spawnWeapon3][1];
@@ -1163,7 +1163,7 @@ public OnPlayerSpawn(playerid)
 
 	// Set spawn info team
 	SS_Teamid[playerid] = SS_SpawnData[playerid][SS_spawnTeam];
-	OLD_SetPlayerTeam(playerid, 0);
+	OLD_SetPlayerTeam(playerid, SS_Teamid[playerid]); //why 0, I think it is right is SS_Teamid[playerid]
 
 	#if defined SS_OnPlayerSpawn
 		return SS_OnPlayerSpawn(playerid);
